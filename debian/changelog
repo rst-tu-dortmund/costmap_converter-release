@@ -1,7 +1,0 @@
-ros-indigo-costmap-converter (0.0.1-0trusty) trusty; urgency=high
-
-  * First release of the package including a pluginlib interface, two plugins (costmap to polygons and costmap to lines) and a standalone conversion node.
-
- -- Christoph Rösmann <christoph.roesmann@tu-dortmund.de>  Sun, 20 Dec 2015 23:00:00 -0000
-
-
