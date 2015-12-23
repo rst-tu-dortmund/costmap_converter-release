@@ -1,0 +1,12 @@
+Source: ros-jade-costmap-converter
+Section: misc
+Priority: extra
+Maintainer: Christoph Rösmann <christoph.roesmann@tu-dortmund.de>
+Build-Depends: debhelper (>= 9.0.0), ros-jade-catkin, ros-jade-costmap-2d, ros-jade-geometry-msgs, ros-jade-pluginlib, ros-jade-roscpp, ros-jade-std-msgs
+Homepage: http://wiki.ros.org/costmap_converter
+Standards-Version: 3.9.2
+
+Package: ros-jade-costmap-converter
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-jade-costmap-2d, ros-jade-geometry-msgs, ros-jade-pluginlib, ros-jade-roscpp, ros-jade-std-msgs
+Description: A ros package that includes plugins and nodes to convert occupied costmap2d cells to primitive types.
