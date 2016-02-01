@@ -1,0 +1,39 @@
+ros-indigo-costmap-converter (0.0.5-0saucy) saucy; urgency=high
+
+  * Major changes regarding the line detection based on the convex hull
+    (it should be much more robust now).
+  * Concave hull plugin added.
+  * The cluster size can now be limited from above using a specific parameter.
+    This implicitly avoids large clusters forming a 'L' or 'U'.
+  * All parameters can now be adjusted using dynamic_reconfigure (rqt_reconfigure).
+  * Some parameter names changed.
+  * Line plugin based on ransac: line inliers must now be placed inbetween the start and end of a line.
+
+ -- Christoph Rösmann <christoph.roesmann@tu-dortmund.de>  Sun, 31 Jan 2016 23:00:00 -0000
+
+ros-indigo-costmap-converter (0.0.4-0saucy) saucy; urgency=high
+
+  * Fixed conversion from map to world coordinates if the costmap is not quadratic.
+
+ -- Christoph Rösmann <christoph.roesmann@tu-dortmund.de>  Sun, 10 Jan 2016 23:00:00 -0000
+
+ros-indigo-costmap-converter (0.0.3-0saucy) saucy; urgency=high
+
+  * The argument list of the initialize method requires a nodehandle from now on. This facilitates the handling of parameter namespaces for multiple instantiations of the plugin.
+  * This change is pushed immediately as a single release to avoid API breaks (since version 0.0.2 is not on the official repos up to now).
+
+ -- Christoph Rösmann <christoph.roesmann@tu-dortmund.de>  Tue, 22 Dec 2015 23:00:00 -0000
+
+ros-indigo-costmap-converter (0.0.2-0saucy) saucy; urgency=high
+
+  * Added a plugin for converting the costmap to lines using ransac
+
+ -- Christoph Rösmann <christoph.roesmann@tu-dortmund.de>  Mon, 21 Dec 2015 23:00:00 -0000
+
+ros-indigo-costmap-converter (0.0.1-0saucy) saucy; urgency=high
+
+  * First release of the package including a pluginlib interface, two plugins (costmap to polygons and costmap to lines) and a standalone conversion node.
+
+ -- Christoph Rösmann <christoph.roesmann@tu-dortmund.de>  Sun, 20 Dec 2015 23:00:00 -0000
+
+
