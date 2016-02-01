@@ -41,7 +41,10 @@
 
 #include <costmap_converter/costmap_converter_interface.h>
 #include <costmap_converter/costmap_to_polygons.h>
+#include <costmap_converter/misc.h>
 #include <boost/random.hpp>
+
+#include <costmap_converter/CostmapToLinesDBSRANSACConfig.h>
 
 namespace costmap_converter
 {
@@ -75,9 +78,9 @@ namespace costmap_converter
     CostmapToLinesDBSRANSAC();
        
     /**
-     * @brief Empty destructor
+     * @brief Destructor
      */
-    virtual ~CostmapToLinesDBSRANSAC(){}
+    virtual ~CostmapToLinesDBSRANSAC();
     
     /**
      * @brief Initialize the plugin
@@ -89,31 +92,20 @@ namespace costmap_converter
      * @brief This method performs the actual work (conversion of the costmap to polygons)
      */
     virtual void compute();   
-    
-    
+        
+     
     /**
-     * @brief Calculate the distance between a point and a straight line (with infinite length)
-     * @param point generic 2D point type defining the reference point
-     * @param line_pt1 generic 2D point as part of the line
-     * @param line_pt2 generic 2D point as part of the line
-     * @tparam Point generic point type that should provide (writable) x and y member fiels.
-     * @tparam LinePoint generic point type that should provide (writable) x and y member fiels.
-     * @return (minimum) eucldian distance to the line segment
-     */
-    template <typename Point, typename LinePoint>
-    static double computeDistanceToLine(const Point& point, const LinePoint& line_pt1, const LinePoint& line_pt2);
-    
-    /**
-     * @brief Calculate the distance between a point and a straight line segment
+     * @brief Check if the candidate point is an inlier.
      * @param point generic 2D point type defining the reference point
      * @param line_start generic 2D point type defining the start of the line
      * @param line_end generic 2D point type defining the end of the line
+     * @param min_distance minimum distance allowed
      * @tparam Point generic point type that should provide (writable) x and y member fiels.
      * @tparam LinePoint generic point type that should provide (writable) x and y member fiels.
-     * @return (minimum) eucldian distance to the line segment
+     * @return \c true if inlier, \c false otherwise
      */
     template <typename Point, typename LinePoint>
-    static double computeDistanceToLineSegment(const Point& point, const LinePoint& line_start, const LinePoint& line_end);
+    static bool isInlier(const Point& point, const LinePoint& line_start, const LinePoint& line_end, double min_distance);
     
   protected:
     
@@ -142,7 +134,6 @@ namespace costmap_converter
     bool lineRansac(const std::vector<KeyPoint>& data, double inlier_distance, int no_iterations, int min_inliers,
                     std::pair<KeyPoint, KeyPoint>& best_model, std::vector<KeyPoint>* inliers = NULL,
                      std::vector<KeyPoint>* outliers = NULL);
- 
     
     /**
      * @brief Perform a simple linear regression in order to fit a straight line 'y = slope*x + intercept'
@@ -161,53 +152,35 @@ namespace costmap_converter
 //     void adjustLineLength(const std::vector<KeyPoint>& data, const KeyPoint& linept1, const KeyPoint& linept2, 
 //                           KeyPoint& line_start, KeyPoint& line_end);
     
+    private:
+    
+    /**
+     * @brief Callback for the dynamic_reconfigure node.
+     * 
+     * This callback allows to modify parameters dynamically at runtime without restarting the node
+     * @param config Reference to the dynamic reconfigure config
+     * @param level Dynamic reconfigure level
+     */
+    void reconfigureCB(CostmapToLinesDBSRANSACConfig& config, uint32_t level);
+    
+    dynamic_reconfigure::Server<CostmapToLinesDBSRANSACConfig>* dynamic_recfg_; //!< Dynamic reconfigure server to allow config modifications at runtime   
+    
   };  
   
   
-  
-  
-  
-  
-  
-template <typename Point, typename LinePoint> 
-double CostmapToLinesDBSRANSAC::computeDistanceToLine(const Point& point, const LinePoint& line_pt1, const LinePoint& line_pt2)
+
+template <typename Point, typename LinePoint>
+bool CostmapToLinesDBSRANSAC::isInlier(const Point& point, const LinePoint& line_start, const LinePoint& line_end, double min_distance)
 {
-    double dx = line_pt2.x - line_pt1.x;
-    double dy = line_pt2.y - line_pt1.y;
-    
-    double length = std::sqrt(dx*dx + dy*dy);
-    
-    if (length>0)
-      return std::abs(dy * point.x - dx * point.y + line_pt2.x * line_pt1.y - line_pt2.y * line_pt1.x) / length;
-   
-    return std::sqrt(std::pow(point.x - line_pt1.x, 2) + std::pow(point.y - line_pt1.y, 2));  
+  bool is_inbetween = false;
+  double distance = computeDistanceToLineSegment(point, line_start, line_end, &is_inbetween);
+  if (!is_inbetween)
+    return false;
+  if (distance <= min_distance)
+    return true;
+  return false;
 }
-
-  
-template <typename Point, typename LinePoint> 
-double CostmapToLinesDBSRANSAC::computeDistanceToLineSegment(const Point& point, const LinePoint& line_start, const LinePoint& line_end)
-{
-    double dx = line_end.x - line_start.x;
-    double dy = line_end.y - line_start.y;
-    
-    double length = std::sqrt(dx*dx + dy*dy);
-    
-    double u = 0;
-    
-    if (length>0)
-     u = ((point.x - line_start.x) * dx + (point.y - line_start.y)*dy) / length;
-  
-    if (u <= 0)
-      return std::sqrt(std::pow(point.x-line_start.x,2) + std::pow(point.y-line_start.y,2));
-    
-    if (u >= 1)
-      return std::sqrt(std::pow(point.x-line_end.x,2) + std::pow(point.y-line_end.y,2));
-    
-    return std::sqrt(std::pow(point.x - (line_start.x+u*dx) ,2) + std::pow(point.y - (line_start.y+u*dy),2));
-}  
-
-
-  
+     
   
 } //end namespace teb_local_planner
 

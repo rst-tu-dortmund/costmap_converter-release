@@ -42,6 +42,8 @@
 #include <costmap_converter/costmap_converter_interface.h>
 #include <costmap_converter/costmap_to_polygons.h>
 
+// dynamic reconfigure
+#include <costmap_converter/CostmapToLinesDBSMCCHConfig.h>
 
 namespace costmap_converter
 {
@@ -74,9 +76,9 @@ namespace costmap_converter
     CostmapToLinesDBSMCCH();
        
     /**
-     * @brief Empty destructor
+     * @brief Destructor
      */
-    virtual ~CostmapToLinesDBSMCCH(){}
+    virtual ~CostmapToLinesDBSMCCH();
     
     /**
      * @brief Initialize the plugin
@@ -89,17 +91,6 @@ namespace costmap_converter
      */
     virtual void compute();   
     
-    /**
-     * @brief Calculate the distance between a point and a line segment
-     * @param point generic 2D point type defining the reference point
-     * @param line_start generic 2D point type defining the start of the line
-     * @param line_end generic 2D point type defining the end of the line
-     * @tparam Point generic point type that should provide (writable) x and y member fiels.
-     * @tparam LinePoint generic point type that should provide (writable) x and y member fiels.
-     * @return (minimum) eucldian distance to the line segment
-     */
-    template <typename Point, typename LinePoint>
-    static double computeDistanceToLineSegment(const Point& point, const LinePoint& line_start, const LinePoint& line_end);
     
   protected:
     
@@ -109,45 +100,35 @@ namespace costmap_converter
      * @param polygon convex hull of the cluster \c cluster
      * @param[out] lines back_inserter object to a sequence of polygon msgs (new lines will be pushed back)
      */
-    void extractPointsAndLines(const std::vector<KeyPoint>& cluster, const geometry_msgs::Polygon& polygon, std::back_insert_iterator< std::vector<geometry_msgs::Polygon> > lines);
+    void extractPointsAndLines(std::vector<KeyPoint>& cluster, const geometry_msgs::Polygon& polygon, std::back_insert_iterator< std::vector<geometry_msgs::Polygon> > lines);
+
     
     
   protected:
-        
-    double support_pts_min_dist_;
+      
+    double support_pts_max_dist_inbetween_;
+    double support_pts_max_dist_;
     int min_support_pts_;
+   
+  private:
+    
+    /**
+     * @brief Callback for the dynamic_reconfigure node.
+     * 
+     * This callback allows to modify parameters dynamically at runtime without restarting the node
+     * @param config Reference to the dynamic reconfigure config
+     * @param level Dynamic reconfigure level
+     */
+    void reconfigureCB(CostmapToLinesDBSMCCHConfig& config, uint32_t level);
+    
+    dynamic_reconfigure::Server<CostmapToLinesDBSMCCHConfig>* dynamic_recfg_; //!< Dynamic reconfigure server to allow config modifications at runtime   
  
   };  
   
   
   
   
-  
-  
-  
-  
-  
-template <typename Point, typename LinePoint> 
-double CostmapToLinesDBSMCCH::computeDistanceToLineSegment(const Point& point, const LinePoint& line_start, const LinePoint& line_end)
-{
-    double dx = line_end.x - line_start.x;
-    double dy = line_end.y - line_start.y;
-    
-    double length = std::sqrt(dx*dx + dy*dy);
-    
-    double u = 0;
-    
-    if (length>0)
-     u = ((point.x - line_start.x) * dx + (point.y - line_start.y)*dy) / length;
-  
-    if (u <= 0)
-      return std::sqrt(std::pow(point.x-line_start.x,2) + std::pow(point.y-line_start.y,2));
-    
-    if (u >= 1)
-      return std::sqrt(std::pow(point.x-line_end.x,2) + std::pow(point.y-line_end.y,2));
-    
-    return std::sqrt(std::pow(point.x - (line_start.x+u*dx) ,2) + std::pow(point.y - (line_start.y+u*dy),2));
-}
+
 
   
   
