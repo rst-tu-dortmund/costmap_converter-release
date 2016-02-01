@@ -37,6 +37,7 @@
  *********************************************************************/
 
 #include <costmap_converter/costmap_to_lines_convex_hull.h>
+#include <costmap_converter/misc.h>
 #include <boost/thread.hpp>
 #include <boost/thread/mutex.hpp>
 #include <pluginlib/class_list_macros.h>
@@ -48,7 +49,13 @@ namespace costmap_converter
 
 CostmapToLinesDBSMCCH::CostmapToLinesDBSMCCH() : CostmapToPolygonsDBSMCCH() 
 {
-
+    dynamic_recfg_ = NULL;
+}
+  
+CostmapToLinesDBSMCCH::~CostmapToLinesDBSMCCH() 
+{
+  if (dynamic_recfg_ != NULL)
+    delete dynamic_recfg_;
 }
   
 void CostmapToLinesDBSMCCH::initialize(ros::NodeHandle nh)
@@ -60,16 +67,33 @@ void CostmapToLinesDBSMCCH::initialize(ros::NodeHandle nh)
     min_pts_ = 2;
     nh.param("cluster_min_pts", min_pts_, min_pts_);
     
+    max_pts_ = 30;
+    nh.param("cluster_max_pts", max_pts_, max_pts_);
+    
     // convex hull
-    min_keypoint_separation_ = 0.3;
+    min_keypoint_separation_ = 0.1;
     nh.param("convex_hull_min_pt_separation", min_keypoint_separation_, min_keypoint_separation_);
     
     // Line extraction
-    support_pts_min_dist_ = 0.06;
-    nh.param("support_pts_min_dist_", support_pts_min_dist_, support_pts_min_dist_);
+    support_pts_max_dist_ = 0.3;
+    nh.param("support_pts_max_dist", support_pts_max_dist_, support_pts_max_dist_);
     
-    min_support_pts_ = 3;
-    nh.param("min_support_pts_", min_support_pts_, min_support_pts_);
+    support_pts_max_dist_inbetween_ = 1.0;
+    nh.param("support_pts_max_dist_inbetween", support_pts_max_dist_inbetween_, support_pts_max_dist_inbetween_);
+    
+    min_support_pts_ = 2;
+    nh.param("min_support_pts", min_support_pts_, min_support_pts_);
+    
+    // setup dynamic reconfigure
+    dynamic_recfg_ = new dynamic_reconfigure::Server<CostmapToLinesDBSMCCHConfig>(nh);
+    dynamic_reconfigure::Server<CostmapToLinesDBSMCCHConfig>::CallbackType cb = boost::bind(&CostmapToLinesDBSMCCH::reconfigureCB, this, _1, _2);
+    dynamic_recfg_->setCallback(cb);
+    
+    // deprecated
+    if (nh.hasParam("support_pts_min_dist_") || nh.hasParam("support_pts_min_dist"))
+      ROS_WARN("CostmapToLinesDBSMCCH: Parameter 'support_pts_min_dist' is deprecated and not included anymore.");
+    if (nh.hasParam("min_support_pts_"))
+      ROS_WARN("CostmapToLinesDBSMCCH: Parameter 'min_support_pts_' is not found. Remove the underscore.");
 }  
   
 void CostmapToLinesDBSMCCH::compute()
@@ -85,7 +109,7 @@ void CostmapToLinesDBSMCCH::compute()
     for (int i = 1; i <clusters.size(); ++i) // skip first cluster, since it is just noise
     {
       geometry_msgs::Polygon polygon;
-      convexHull(clusters[i], polygon );
+      convexHull2(clusters[i], polygon );
       
       // now extract lines of the polygon (by searching for support points in the cluster)  
       // and add them to the polygon container
@@ -106,67 +130,166 @@ void CostmapToLinesDBSMCCH::compute()
     updatePolygonContainer(polygons);
 }
 
+typedef CostmapToLinesDBSMCCH CL;
+bool sort_keypoint_x(const std::size_t& i, const std::size_t& j, const std::vector<CL::KeyPoint>& cluster) 
+{ return (cluster[i].x<cluster[j].x) || (cluster[i].x == cluster[j].x && cluster[i].y < cluster[j].y); }
+bool sort_keypoint_y(const std::size_t& i, const std::size_t& j, const std::vector<CL::KeyPoint>& cluster) 
+{ return (cluster[i].y<cluster[j].y) || (cluster[i].y == cluster[j].y && cluster[i].x < cluster[j].x); }
 
-
-void CostmapToLinesDBSMCCH::extractPointsAndLines(const std::vector<KeyPoint>& cluster, const geometry_msgs::Polygon& polygon,
+void CostmapToLinesDBSMCCH::extractPointsAndLines(std::vector<KeyPoint>& cluster, const geometry_msgs::Polygon& polygon,
                                                   std::back_insert_iterator< std::vector<geometry_msgs::Polygon> > lines)
 {
    if (polygon.points.empty())
      return;
   
-   if (polygon.points.size() == 1)
+   if (polygon.points.size() < 2)
    {
      lines = polygon; // our polygon is just a point, push back onto the output sequence
      return;
    }
-  
-   for (int i=0; i<(int)polygon.points.size() - 1; ++i) // this implemenation requires a closed polygon (start vertex = end vertex)
+   int n = (int)polygon.points.size();
+     
+   for (int i=1; i<n; ++i) // this implemenation requires an explicitly closed polygon (start vertex = end vertex)
    {
-        const geometry_msgs::Point32& vertex1 = polygon.points[i];
-        const geometry_msgs::Point32& vertex2 = polygon.points[i+1];
-       
-        bool vertex1_is_part_of_a_line = false;
-        
-        //Search support points
-        int support_points = 0;
-        
-        for(int c = 0; c < cluster.size(); ++c)
-        {
-          if((cluster[c].x == vertex1.x && cluster[c].y == vertex1.y) || (cluster[c].x == vertex2.x && cluster[c].y == vertex2.y))
-          {  
-            continue;
-          }
-          else
-          {
-            double dist_line_to_point = computeDistanceToLineSegment( cluster[c], vertex1, vertex2 );
+        const geometry_msgs::Point32* vertex1 = &polygon.points[i-1];
+        const geometry_msgs::Point32* vertex2 = &polygon.points[i];
 
-            if(dist_line_to_point <= support_pts_min_dist_)
+        // check how many vertices belong to the line (sometimes the convex hull algorithm finds multiple vertices on a line,
+        // in case of small coordinate deviations)
+        double dx = vertex2->x - vertex1->x;
+        double dy = vertex2->y - vertex1->y;
+//         double norm = std::sqrt(dx*dx + dy*dy);
+//         dx /= norm;
+//         dy /= norm;
+//         for (int j=i; j<(int)polygon.points.size() - 2; ++j)
+//         {
+//           const geometry_msgs::Point32* vertex_jp2 = &polygon.points[j+2];
+//           double dx2 = vertex_jp2->x - vertex2->x;
+//           double dy2 = vertex_jp2->y - vertex2->y;
+//           double norm2 = std::sqrt(dx2*dx2 + dy2*dy2);
+//           dx2 /= norm2;
+//           dy2 /= norm2;
+//           if (std::abs(dx*dx2 + dy*dy2) < 0.05) //~3 degree
+//           {
+//             vertex2 = &polygon.points[j+2];
+//             i = j; // DO NOT USE "i" afterwards
+//           }
+//           else break;
+//         }
+       
+        //Search support points
+        std::vector<std::size_t> support_points; // store indices of cluster
+        
+        for (std::size_t k = 0; k < cluster.size(); ++k)
+        {
+            bool is_inbetween = false;
+            double dist_line_to_point = computeDistanceToLineSegment( cluster[k], *vertex1, *vertex2, &is_inbetween );
+
+            if(is_inbetween && dist_line_to_point <= support_pts_max_dist_)
             {
-              support_points++;
-              if (support_points >= min_support_pts_)
+              support_points.push_back(k);
+              continue;
+            }
+        }
+
+        // now check if the inlier models a line by checking the minimum distance between all support points (avoid lines over gaps)
+        // and by checking if the minium number of points is reached // deactivate by setting support_pts_max_dist_inbetween_==0
+        bool is_line=true;
+        if (support_pts_max_dist_inbetween_!=0)
+        {
+          if ((int)support_points.size() >= min_support_pts_ + 2) // +2 since start and goal are included
+          {          
+            // sort points
+            if (std::abs(dx) >= std::abs(dy))
+              std::sort(support_points.begin(), support_points.end(), boost::bind(sort_keypoint_x, _1, _2, boost::cref(cluster)));
+            else 
+              std::sort(support_points.begin(), support_points.end(), boost::bind(sort_keypoint_y, _1, _2, boost::cref(cluster)));
+            
+            // now calculate distances
+            for (int k = 1; k < int(support_points.size()); ++k)
+            {
+              double dist_x = cluster[support_points[k]].x - cluster[support_points[k-1]].x;
+              double dist_y = cluster[support_points[k]].y - cluster[support_points[k-1]].y;
+              double dist = std::sqrt( dist_x*dist_x + dist_y*dist_y);
+              if (dist > support_pts_max_dist_inbetween_)
               {
-                // line found:
-                geometry_msgs::Polygon line;
-                line.points.push_back(vertex1);
-                line.points.push_back(vertex2);
-                lines = line; // back insertion
-                vertex1_is_part_of_a_line = true;
+                is_line = false;
                 break;
               }
             }
+            
+          }
+          else
+            is_line = false;
+        }
+        
+        if (is_line)
+        {
+          // line found:
+          geometry_msgs::Polygon line;
+          line.points.push_back(*vertex1);
+          line.points.push_back(*vertex2);
+          lines = line; // back insertion
+          
+          // remove inlier from list
+          // iterate in reverse order, otherwise indices are not valid after erasing elements
+          std::vector<std::size_t>::reverse_iterator support_it = support_points.rbegin();
+          for (; support_it != support_points.rend(); ++support_it)
+          {
+            cluster.erase(cluster.begin() + *support_it);
           }
         }
-              
-        if (!vertex1_is_part_of_a_line) // for i=polygon.points.size() -> already included since vertex_0 == vertex_n
+        else
         {
-            // add vertex 1 as single point
-            geometry_msgs::Polygon point;
-            point.points.push_back(vertex1);
-            lines = point; // back insertion
+            // remove goal, since it will be added in the subsequent iteration
+            //support_points.pop_back();
+          // old:
+//             // add vertex 1 as single point
+//             geometry_msgs::Polygon point;
+//             point.points.push_back(*vertex1);
+//             lines = point; // back insertion
+
+           // add complete inlier set as points 
+//            for (int k = 0; k < int(support_points.size()); ++k)
+//            {
+//               geometry_msgs::Polygon polygon;
+//               convertPointToPolygon(cluster[support_points[k]], polygon);
+//               lines = polygon; // back insertion
+//            }
+           
+          // remove inlier from list and add them as point obstacles
+          // iterate in reverse order, otherwise indices are not valid after erasing elements
+          std::vector<std::size_t>::reverse_iterator support_it = support_points.rbegin();
+          for (; support_it != support_points.rend(); ++support_it)
+          {
+            geometry_msgs::Polygon polygon;
+            convertPointToPolygon(cluster[*support_it], polygon);
+            lines = polygon; // back insertion
+            
+            cluster.erase(cluster.begin() + *support_it);
+          }
         }
     }
  
+    // add all remaining cluster points, that do not belong to a line
+    for (int i=0; i<(int)cluster.size();++i)
+    {
+        geometry_msgs::Polygon polygon;
+        convertPointToPolygon(cluster[i], polygon);
+        lines = polygon; // back insertion
+    }
 
+}
+
+void CostmapToLinesDBSMCCH::reconfigureCB(CostmapToLinesDBSMCCHConfig& config, uint32_t level)
+{
+    max_distance_ = config.cluster_max_distance;
+    min_pts_ = config.cluster_min_pts;
+    max_pts_ = config.cluster_max_pts;
+    min_keypoint_separation_ = config.cluster_min_pts;
+    support_pts_max_dist_ = config.support_pts_max_dist;
+    support_pts_max_dist_inbetween_ = config.support_pts_max_dist_inbetween;
+    min_support_pts_ = config.min_support_pts;
 }
 
 
