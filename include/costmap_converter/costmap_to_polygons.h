@@ -52,6 +52,10 @@
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/thread.hpp>
 
+// dynamic reconfigure
+#include <costmap_converter/CostmapToPolygonsDBSMCCHConfig.h>
+#include <dynamic_reconfigure/server.h>
+
 
 namespace costmap_converter
 {
@@ -102,9 +106,9 @@ class CostmapToPolygonsDBSMCCH : public BaseCostmapToPolygons
     CostmapToPolygonsDBSMCCH();
     
     /**
-     * @brief Empty destructor
+     * @brief Destructor
      */
-    virtual ~CostmapToPolygonsDBSMCCH(){}
+    virtual ~CostmapToPolygonsDBSMCCH();
     
     /**
      * @brief Initialize the plugin
@@ -129,7 +133,7 @@ class CostmapToPolygonsDBSMCCH : public BaseCostmapToPolygons
      * @sa setCostmap2D
      */
     virtual void updateCostmap2D();
-
+    
     
     /**
      * @brief Convert a generi point type to a geometry_msgs::Polygon
@@ -182,17 +186,33 @@ class CostmapToPolygonsDBSMCCH : public BaseCostmapToPolygons
 
     
     /**
-     * @brief Compute the convex hull for a single cluster
+     * @brief Compute the convex hull for a single cluster (monotone chain algorithm)
      * 
      * Clusters are converted into convex polgons using the monotone chain algorithm aka Andrew's algorithm:
      *    C++ implementation example: http://www.algorithmist.com/index.php/Monotone_Chain_Convex_Hull ( GNU Free Documentation License 1.2 )
      *    Reference:  A. M. Andrew, "Another Efficient Algorithm for Convex Hulls in Two Dimensions", Info. Proc. Letters 9, 216-219 (1979).
-     * 
+     * @remarks The algorithm seems to cut edges, thus we give a try to convexHull2().
+     * @todo Evaluate and figure out whether convexHull() or convexHull2() is better suited (performance, quality, ...)
+     * @remarks The last point is the same as the first one
      * @param cluster list of keypoints that should be converted into a polygon
      * @param[out] polygon the resulting convex polygon
      */  
     void convexHull(std::vector<KeyPoint>& cluster, geometry_msgs::Polygon& polygon);
     
+    /**
+     * @brief Compute the convex hull for a single cluster
+     * 
+     * Clusters are converted into convex polgons using an algorithm provided here:
+     *  https://bitbucket.org/vostreltsov/concave-hull/overview
+     * The convex hull algorithm is part of the concave hull algorithm.
+     * The license is WTFPL 2.0 and permits any usage.
+     * 
+     * @remarks The last point is the same as the first one
+     * @param cluster list of keypoints that should be converted into a polygon
+     * @param[out] polygon the resulting convex polygon
+     * @todo Evaluate and figure out whether convexHull() or convexHull2() is better suited (performance, quality, ...)
+     */  
+    void convexHull2(std::vector<KeyPoint>& cluster, geometry_msgs::Polygon& polygon);
     
    /**
     * @brief 2D Cross product of two vectors defined by two points and a common origin
@@ -215,21 +235,34 @@ class CostmapToPolygonsDBSMCCH : public BaseCostmapToPolygons
     * @param polygons Updated polygon container
     */
    void updatePolygonContainer(PolygonContainerPtr polygons);   
-       
+          
    
    std::vector<KeyPoint> occupied_cells_; //!< List of occupied cells in the current map (updated by updateCostmap2D())
 
    // DBSCAN parameters
    double max_distance_; //!< Parameter for DB_Scan, maximum distance to neighbors [m]
    int min_pts_; //!< Parameter for DB_Scan: minimum number of points that define a cluster
+   int max_pts_; //!< Parameter for DB_Scan: maximum number of points that define a cluster (to avoid large L- and U-shapes)
    
    // convex hull parameters
    double min_keypoint_separation_; //!< Clear keypoints of the convex polygon that are close to each other [distance in meters] (0: keep all)
    
   private:
        
+    /**
+     * @brief Callback for the dynamic_reconfigure node.
+     * 
+     * This callback allows to modify parameters dynamically at runtime without restarting the node
+     * @param config Reference to the dynamic reconfigure config
+     * @param level Dynamic reconfigure level
+     */
+    void reconfigureCB(CostmapToPolygonsDBSMCCHConfig& config, uint32_t level);
+    
+    
     PolygonContainerPtr polygons_; //!< Current shared container of polygons
     boost::mutex mutex_; //!< Mutex that keeps track about the ownership of the shared polygon instance
+    
+    dynamic_reconfigure::Server<CostmapToPolygonsDBSMCCHConfig>* dynamic_recfg_; //!< Dynamic reconfigure server to allow config modifications at runtime    
    
     costmap_2d::Costmap2D *costmap_; //!< Pointer to the costmap2d
    
