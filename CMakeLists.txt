@@ -31,8 +31,20 @@ find_package(OpenCV REQUIRED)
 ## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
 # catkin_python_setup()
 
-set (CMAKE_CXX_STANDARD 11)
-
+## C++11 support
+IF(NOT MSVC)
+  include(CheckCXXCompilerFlag)
+  CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
+  CHECK_CXX_COMPILER_FLAG("-std=c++0x" COMPILER_SUPPORTS_CXX0X)
+if(COMPILER_SUPPORTS_CXX11)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+elseif(COMPILER_SUPPORTS_CXX0X)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
+else()
+  message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support which is required 
+  by linked third party packages starting from ROS Jade. Ignore this message for ROS Indigo.")
+endif()
+endif()
 
 ################################################
 ## Declare ROS messages, services and actions ##
@@ -128,6 +140,7 @@ catkin_package(
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
 )
 
 ## Declare a cpp library
@@ -142,7 +155,7 @@ add_library(costmap_converter   src/costmap_to_polygons.cpp
                                 src/costmap_to_dynamic_obstacles/multitarget_tracker/Kalman.cpp
                                 src/costmap_to_dynamic_obstacles/multitarget_tracker/HungarianAlg.cpp
 )
-target_link_libraries(costmap_converter ${catkin_LIBRARIES})
+target_link_libraries(costmap_converter ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
 # target_compile_features(costmap_converter PUBLIC cxx_nullptr cxx_range_for)
 
 # Dynamic reconfigure: make sure configure headers raare built before any node using them
