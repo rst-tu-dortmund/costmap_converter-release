@@ -1,11 +1,13 @@
 #include <costmap_converter/costmap_to_dynamic_obstacles/blob_detector.h>
-#include <opencv2/imgproc.hpp>
+#include <opencv2/opencv.hpp>
+#include <iostream>
 
 BlobDetector::BlobDetector(const SimpleBlobDetector::Params& parameters) : params_(parameters) {}
 
 cv::Ptr<BlobDetector> BlobDetector::create(const cv::SimpleBlobDetector::Params& params)
 {
-  return cv::makePtr<BlobDetector>(params);
+  return cv::Ptr<BlobDetector> (new BlobDetector(params)); // compatibility with older versions
+  //return cv::makePtr<BlobDetector>(params);
 }
 
 void BlobDetector::detect(const cv::Mat& image, std::vector<cv::KeyPoint>& keypoints, const cv::Mat&)
@@ -22,7 +24,8 @@ void BlobDetector::detect(const cv::Mat& image, std::vector<cv::KeyPoint>& keypo
 
   if (grayscale_image.type() != CV_8UC1)
   {
-    CV_Error(cv::Error::StsUnsupportedFormat, "Blob detector only supports 8-bit images!");
+    //CV_Error(cv::Error::StsUnsupportedFormat, "Blob detector only supports 8-bit images!");
+    std::cerr << "Blob detector only supports 8-bit images!\n";
   }
 
   std::vector<std::vector<Center>> centers;
