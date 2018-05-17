@@ -53,10 +53,16 @@ class CostmapStandaloneConversion
 public:
   CostmapStandaloneConversion() : converter_loader_("costmap_converter", "costmap_converter::BaseCostmapToPolygons"), n_("~")
   {
-      
+
       std::string converter_plugin = "costmap_converter::CostmapToPolygonsDBSMCCH";
+      std::string static_converter_plugin = "";
+
+      // Use the following lines for conversion of dynamic obstacles with optional subsequent conversion of static obstacles
+      // std::string converter_plugin = "costmap_converter::CostmapToDynamicObstacles";
+      // std::string static_converter_plugin = "costmap_converter::CostmapToPolygonsDBSMCCH";
+
       n_.param("converter_plugin", converter_plugin, converter_plugin);
-      
+
       try
       {
         converter_ = converter_loader_.createInstance(converter_plugin);
@@ -66,11 +72,14 @@ public:
         ROS_ERROR("The plugin failed to load for some reason. Error: %s", ex.what());
         ros::shutdown();
       }
-      
-      ROS_INFO_STREAM(converter_plugin << " loaded.");
-      
-      std::string costmap_topic = "move_base/local_costmap/costmap";
+
+      ROS_INFO_STREAM("Standalone costmap converter:" << converter_plugin << " loaded.");
+
+      std::string costmap_topic = "/move_base/local_costmap/costmap";
       n_.param("costmap_topic", costmap_topic, costmap_topic);
+
+      std::string costmap_update_topic = "/move_base/local_costmap/costmap_updates";
+      n_.param("costmap_update_topic", costmap_update_topic, costmap_update_topic);
 
       std::string obstacles_topic = "costmap_obstacles";
       n_.param("obstacles_topic", obstacles_topic, obstacles_topic);
@@ -79,50 +88,72 @@ public:
       n_.param("polygon_marker_topic", polygon_marker_topic, polygon_marker_topic);
 
       costmap_sub_ = n_.subscribe(costmap_topic, 1, &CostmapStandaloneConversion::costmapCallback, this);
+      costmap_update_sub_ = n_.subscribe(costmap_update_topic, 1, &CostmapStandaloneConversion::costmapUpdateCallback, this);
       obstacle_pub_ = n_.advertise<costmap_converter::ObstacleArrayMsg>(obstacles_topic, 1000);
       marker_pub_ = n_.advertise<visualization_msgs::Marker>(polygon_marker_topic, 10);
-      
-      frame_id_ = "/map";
-      n_.param("frame_id", frame_id_, frame_id_);
 
       occupied_min_value_ = 100;
       n_.param("occupied_min_value", occupied_min_value_, occupied_min_value_);
 
       std::string odom_topic = "/odom";
       n_.param("odom_topic", odom_topic, odom_topic);
-      
+
       if (converter_)
       {
         converter_->setOdomTopic(odom_topic);
         converter_->initialize(n_);
-        converter_->setCostmap2D(&map); 
+        converter_->setCostmap2D(&map_);
         //converter_->startWorker(ros::Rate(5), &map, true);
       }
+
+      // Setup the subsequent conversion of static obstacles
+      boost::shared_ptr<costmap_converter::BaseCostmapToDynamicObstacles> dynamic_costmap_converter = boost::dynamic_pointer_cast<costmap_converter::BaseCostmapToDynamicObstacles>(converter_);
+      if(dynamic_costmap_converter && !static_converter_plugin.empty())
+      {
+        try
+        {
+          boost::shared_ptr<costmap_converter::BaseCostmapToPolygons> static_costmap_converter = converter_loader_.createInstance(static_converter_plugin);
+          if(boost::dynamic_pointer_cast<costmap_converter::BaseCostmapToDynamicObstacles>(static_costmap_converter))
+          {
+            throw pluginlib::PluginlibException("The specified plugin for static costmap conversion is a dynamic plugin. Specify a static plugin.");
+          }
+          std::string static_converter_name = converter_loader_.getName(static_converter_plugin);
+          static_costmap_converter->initialize(ros::NodeHandle(n_, "costmap_converter/" + static_converter_name));
+          dynamic_costmap_converter->setStaticCostmapConverterPlugin(static_costmap_converter);
+          ROS_INFO_STREAM("Standalone costmap converter: Underlying costmap conversion plugin for static obstacles " << static_converter_plugin << " loaded.");
+        }
+        catch(const pluginlib::PluginlibException& ex)
+        {
+          ROS_WARN("The specified costmap converter plugin cannot be loaded. Continuing without subsequent conversion of static obstacles. Error message: %s", ex.what());
+          // Reset shared pointer
+          dynamic_costmap_converter->setStaticCostmapConverterPlugin(boost::shared_ptr<costmap_converter::BaseCostmapToDynamicObstacles>());
+        }
+      }
    }
-   
-  
+
+
   void costmapCallback(const nav_msgs::OccupancyGridConstPtr& msg)
   {
       ROS_INFO_ONCE("Got first costmap callback. This message will be printed once");
-      
-      if (msg->info.width != map.getSizeInCellsX() || msg->info.height != map.getSizeInCellsY() || msg->info.resolution != map.getResolution())
+
+      if (msg->info.width != map_.getSizeInCellsX() || msg->info.height != map_.getSizeInCellsY() || msg->info.resolution != map_.getResolution())
       {
         ROS_INFO("New map format, resizing and resetting map...");
-        map.resizeMap(msg->info.width, msg->info.height, msg->info.resolution, msg->info.origin.position.x, msg->info.origin.position.y);
+        map_.resizeMap(msg->info.width, msg->info.height, msg->info.resolution, msg->info.origin.position.x, msg->info.origin.position.y);
       }
       else
       {
-        map.updateOrigin(msg->info.origin.position.x, msg->info.origin.position.y);
+        map_.updateOrigin(msg->info.origin.position.x, msg->info.origin.position.y);
       }
-      
-      
+
+
       for (std::size_t i=0; i < msg->data.size(); ++i)
       {
         unsigned int mx, my;
-        map.indexToCells((unsigned int)i, mx, my);
-        map.setCost(mx, my, msg->data[i] >= occupied_min_value_ ? 255 : 0 );
+        map_.indexToCells((unsigned int)i, mx, my);
+        map_.setCost(mx, my, msg->data[i] >= occupied_min_value_ ? 255 : 0 );
       }
-      
+
       // convert
       converter_->updateCostmap2D();
       converter_->compute();
@@ -132,11 +163,37 @@ public:
         return;
 
       obstacle_pub_.publish(obstacles);
-      
-      publishAsMarker(msg->header.frame_id, *obstacles, marker_pub_);
-      
+
+      frame_id_ = msg->header.frame_id;
+
+      publishAsMarker(frame_id_, *obstacles, marker_pub_);
   }
-  
+
+  void costmapUpdateCallback(const map_msgs::OccupancyGridUpdateConstPtr& update)
+  {
+    unsigned int di = 0;
+    for (unsigned int y = 0; y < update->height ; ++y)
+    {
+      for (unsigned int x = 0; x < update->width ; ++x)
+      {
+        map_.setCost(x, y, update->data[di++] >= occupied_min_value_ ? 255 : 0 );
+      }
+    }
+
+    // convert
+    // TODO(roesmann): currently, the converter updates the complete costmap and not the part which is updated in this callback
+    converter_->updateCostmap2D();
+    converter_->compute();
+    costmap_converter::ObstacleArrayConstPtr obstacles = converter_->getObstacles();
+
+    if (!obstacles)
+      return;
+
+    obstacle_pub_.publish(obstacles);
+
+    publishAsMarker(frame_id_, *obstacles, marker_pub_);
+  }
+
   void publishAsMarker(const std::string& frame_id, const std::vector<geometry_msgs::PolygonStamped>& polygonStamped, ros::Publisher& marker_pub)
   {
     visualization_msgs::Marker line_list;
@@ -145,14 +202,14 @@ public:
     line_list.ns = "Polygons";
     line_list.action = visualization_msgs::Marker::ADD;
     line_list.pose.orientation.w = 1.0;
-    
+
     line_list.id = 0;
     line_list.type = visualization_msgs::Marker::LINE_LIST;
-    
+
     line_list.scale.x = 0.1;
     line_list.color.g = 1.0;
     line_list.color.a = 1.0;
-    
+
     for (std::size_t i=0; i<polygonStamped.size(); ++i)
     {
       for (int j=0; j< (int)polygonStamped[i].polygon.points.size()-1; ++j)
@@ -165,7 +222,7 @@ public:
         line_end.x = polygonStamped[i].polygon.points[j+1].x;
         line_end.y = polygonStamped[i].polygon.points[j+1].y;
         line_list.points.push_back(line_end);
-      }     
+      }
       // close loop for current polygon
       if (!polygonStamped[i].polygon.points.empty() && polygonStamped[i].polygon.points.size() != 2 )
       {
@@ -181,8 +238,8 @@ public:
           line_list.points.push_back(line_end);
         }
       }
-        
-      
+
+
     }
     marker_pub.publish(line_list);
   }
@@ -236,34 +293,35 @@ public:
     }
     marker_pub.publish(line_list);
   }
-  
+
 private:
   pluginlib::ClassLoader<costmap_converter::BaseCostmapToPolygons> converter_loader_;
   boost::shared_ptr<costmap_converter::BaseCostmapToPolygons> converter_;
-  
+
   ros::NodeHandle n_;
   ros::Subscriber costmap_sub_;
+  ros::Subscriber costmap_update_sub_;
   ros::Publisher obstacle_pub_;
   ros::Publisher marker_pub_;
-  
+
   std::string frame_id_;
   int occupied_min_value_;
-  
-  costmap_2d::Costmap2D map;
-  
+
+  costmap_2d::Costmap2D map_;
+
 };
 
 
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "costmap_converter");
-  
+
   CostmapStandaloneConversion convert_process;
-  
+
   ros::spin();
 
   costmap_2d::Costmap2D costmap;
-  
+
   return 0;
 }
 
