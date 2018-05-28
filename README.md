@@ -1,3 +1,26 @@
+## costmap_converter (kinetic) - 0.0.9-0
+
+The packages in the `costmap_converter` repository were released into the `kinetic` distro by running `/usr/bin/bloom-release costmap_converter --track kinetic --rosdistro kinetic` on `Mon, 28 May 2018 13:49:35 -0000`
+
+The `costmap_converter` package was released.
+
+Version of package(s) in repository `costmap_converter`:
+
+- upstream repository: https://github.com/rst-tu-dortmund/costmap_converter.git
+- release repository: https://github.com/rst-tu-dortmund/costmap_converter-release.git
+- rosdistro version: `0.0.8-0`
+- old version: `0.0.8-0`
+- new version: `0.0.9-0`
+
+Versions of tools used:
+
+- bloom version: `0.6.4`
+- catkin_pkg version: `0.4.2`
+- rosdep version: `0.12.2`
+- rosdistro version: `0.6.8`
+- vcstools version: `0.1.40`
+
+
 ## costmap_converter (lunar) - 0.0.8-0
 
 The packages in the `costmap_converter` repository were released into the `lunar` distro by running `/usr/bin/bloom-release costmap_converter --track lunar --rosdistro lunar` on `Thu, 17 May 2018 09:47:59 -0000`
