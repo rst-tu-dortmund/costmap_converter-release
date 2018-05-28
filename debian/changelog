@@ -1,0 +1,78 @@
+ros-lunar-costmap-converter (0.0.9-0stretch) stretch; urgency=high
+
+  * Moved plugin loader for static costmap conversion to BaseCostmapToDynamicObstacles.
+    The corresponding ROS parameter static_converter_plugin is now defined in the CostmapToDynamicObstacles namespace.
+  * Contributors: Christoph Rösmann
+
+ -- Christoph Rösmann <christoph.roesmann@tu-dortmund.de>  Sun, 27 May 2018 22:00:00 -0000
+
+ros-lunar-costmap-converter (0.0.8-0stretch) stretch; urgency=high
+
+  * Standalone converter subscribes now to costmap updates. Fixes #1 <https://github.com/rst-tu-dortmund/costmap_converter/issues/1>
+  * Adds radius field for circular obstacles to ObstacleMsg
+  * Stacked costmap conversion (#7 <https://github.com/rst-tu-dortmund/costmap_converter/issues/7>).
+    E.g., it is now possible combine a dynamic obstacle and static obstacle converter plugin.
+  * Contributors: Christoph Rösmann, Franz Albers
+
+ -- Christoph Rösmann <christoph.roesmann@tu-dortmund.de>  Wed, 16 May 2018 22:00:00 -0000
+
+ros-lunar-costmap-converter (0.0.7-0stretch) stretch; urgency=high
+
+  * Fixed some compilation issues (C++11 compiler flags and opencv2 on indigo/jade).
+  * Dynamic obstacle plugin: obstacle velocity is now published for both x and y coordinates rather than the absolute value
+
+ -- Christoph Rösmann <christoph.roesmann@tu-dortmund.de>  Tue, 19 Sep 2017 22:00:00 -0000
+
+ros-lunar-costmap-converter (0.0.6-0stretch) stretch; urgency=high
+
+  * This pull request adds the costmap to dynamic obstacles plugin (written by Franz Albers).
+    It detects the dynamic foreground of the costmap (based on the temporal evolution of the costmap)
+    including blobs representing the obstacles. Furthermore, Kalman-based tracking is applied to estimate
+    the current velocity for each obstacle.
+    **Note, this plugin is still experimental.**
+  * New message types are introduced: costmap_converter::ObstacleMsg and costmap_converter::ObstacleArrayMsg.
+    These types extend the previous polygon representation by additional velocity, orientation and id information.
+  * The API has been extended to provide obstacles via the new ObstacleArrayMsg type instead of vector of polygons.
+  * Contributors: Franz Albers, Christoph Rösmann
+
+ -- Christoph Rösmann <christoph.roesmann@tu-dortmund.de>  Sun, 17 Sep 2017 22:00:00 -0000
+
+ros-lunar-costmap-converter (0.0.5-0stretch) stretch; urgency=high
+
+  * Major changes regarding the line detection based on the convex hull
+    (it should be much more robust now).
+  * Concave hull plugin added.
+  * The cluster size can now be limited from above using a specific parameter.
+    This implicitly avoids large clusters forming a 'L' or 'U'.
+  * All parameters can now be adjusted using dynamic_reconfigure (rqt_reconfigure).
+  * Some parameter names changed.
+  * Line plugin based on ransac: line inliers must now be placed inbetween the start and end of a line.
+
+ -- Christoph Rösmann <christoph.roesmann@tu-dortmund.de>  Sun, 31 Jan 2016 23:00:00 -0000
+
+ros-lunar-costmap-converter (0.0.4-0stretch) stretch; urgency=high
+
+  * Fixed conversion from map to world coordinates if the costmap is not quadratic.
+
+ -- Christoph Rösmann <christoph.roesmann@tu-dortmund.de>  Sun, 10 Jan 2016 23:00:00 -0000
+
+ros-lunar-costmap-converter (0.0.3-0stretch) stretch; urgency=high
+
+  * The argument list of the initialize method requires a nodehandle from now on. This facilitates the handling of parameter namespaces for multiple instantiations of the plugin.
+  * This change is pushed immediately as a single release to avoid API breaks (since version 0.0.2 is not on the official repos up to now).
+
+ -- Christoph Rösmann <christoph.roesmann@tu-dortmund.de>  Tue, 22 Dec 2015 23:00:00 -0000
+
+ros-lunar-costmap-converter (0.0.2-0stretch) stretch; urgency=high
+
+  * Added a plugin for converting the costmap to lines using ransac
+
+ -- Christoph Rösmann <christoph.roesmann@tu-dortmund.de>  Mon, 21 Dec 2015 23:00:00 -0000
+
+ros-lunar-costmap-converter (0.0.1-0stretch) stretch; urgency=high
+
+  * First release of the package including a pluginlib interface, two plugins (costmap to polygons and costmap to lines) and a standalone conversion node.
+
+ -- Christoph Rösmann <christoph.roesmann@tu-dortmund.de>  Sun, 20 Dec 2015 23:00:00 -0000
+
+
