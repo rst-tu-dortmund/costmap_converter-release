@@ -1,3 +1,26 @@
+## costmap_converter (melodic) - 0.0.12-1
+
+The packages in the `costmap_converter` repository were released into the `melodic` distro by running `/usr/bin/bloom-release costmap_converter --rosdistro melodic` on `Mon, 02 Dec 2019 08:22:03 -0000`
+
+The `costmap_converter` package was released.
+
+Version of package(s) in repository `costmap_converter`:
+
+- upstream repository: https://github.com/rst-tu-dortmund/costmap_converter.git
+- release repository: https://github.com/rst-tu-dortmund/costmap_converter-release.git
+- rosdistro version: `0.0.11-1`
+- old version: `0.0.11-1`
+- new version: `0.0.12-1`
+
+Versions of tools used:
+
+- bloom version: `0.9.0`
+- catkin_pkg version: `0.4.14`
+- rosdep version: `0.17.1`
+- rosdistro version: `0.7.5`
+- vcstools version: `0.1.42`
+
+
 ## costmap_converter (kinetic) - 0.0.12-1
 
 The packages in the `costmap_converter` repository were released into the `kinetic` distro by running `/usr/bin/bloom-release costmap_converter --rosdistro kinetic` on `Mon, 02 Dec 2019 08:19:02 -0000`
