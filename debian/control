@@ -1,0 +1,12 @@
+Source: ros-noetic-costmap-converter
+Section: misc
+Priority: optional
+Maintainer: Christoph Rösmann <christoph.roesmann@tu-dortmund.de>
+Build-Depends: debhelper (>= 9.0.0), ros-noetic-catkin, ros-noetic-costmap-2d, ros-noetic-cv-bridge, ros-noetic-dynamic-reconfigure, ros-noetic-geometry-msgs, ros-noetic-message-generation, ros-noetic-pluginlib, ros-noetic-roscpp, ros-noetic-rostest, ros-noetic-std-msgs
+Homepage: http://wiki.ros.org/costmap_converter
+Standards-Version: 3.9.2
+
+Package: ros-noetic-costmap-converter
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-noetic-costmap-2d, ros-noetic-cv-bridge, ros-noetic-dynamic-reconfigure, ros-noetic-geometry-msgs, ros-noetic-message-runtime, ros-noetic-pluginlib, ros-noetic-roscpp, ros-noetic-std-msgs
+Description: A ros package that includes plugins and nodes to convert occupied costmap2d cells to primitive types.
