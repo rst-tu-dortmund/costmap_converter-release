@@ -1,3 +1,26 @@
+## costmap_converter (noetic) - 0.0.13-1
+
+The packages in the `costmap_converter` repository were released into the `noetic` distro by running `/usr/bin/bloom-release costmap_converter --rosdistro noetic` on `Wed, 13 May 2020 07:47:42 -0000`
+
+The `costmap_converter` package was released.
+
+Version of package(s) in repository `costmap_converter`:
+
+- upstream repository: https://github.com/rst-tu-dortmund/costmap_converter.git
+- release repository: https://github.com/rst-tu-dortmund/costmap_converter-release.git
+- rosdistro version: `0.0.12-1`
+- old version: `0.0.12-1`
+- new version: `0.0.13-1`
+
+Versions of tools used:
+
+- bloom version: `0.9.7`
+- catkin_pkg version: `0.4.20`
+- rosdep version: `0.19.0`
+- rosdistro version: `0.8.1`
+- vcstools version: `0.1.42`
+
+
 ## costmap_converter (noetic) - 0.0.12-1
 
 The packages in the `costmap_converter` repository were released into the `noetic` distro by running `/usr/bin/bloom-release costmap_converter --track noetic --rosdistro noetic --new-track` on `Tue, 12 May 2020 17:43:37 -0000`
